@@ -32,7 +32,7 @@ abs = absolute
 
 def findfreqs(num, den, N):
     """
-    Find an array of frequencies for computing the response of a filter.
+    Find array of frequencies for computing the response of an analog filter.
 
     Parameters
     ----------
@@ -94,9 +94,9 @@ def freqs(b, a, worN=None, plot=None):
 
     Parameters
     ----------
-    b : ndarray
+    b : array_like
         Numerator of a linear filter.
-    a : ndarray
+    a : array_like
         Denominator of a linear filter.
     worN : {None, int}, optional
         If None, then compute at 200 frequencies around the interesting parts
@@ -111,7 +111,7 @@ def freqs(b, a, worN=None, plot=None):
     Returns
     -------
     w : ndarray
-        The angular frequencies at which h was computed.
+        The angular frequencies at which `h` was computed.
     h : ndarray
         The frequency response.
 
@@ -172,9 +172,9 @@ def freqz(b, a=1, worN=None, whole=0, plot=None):
 
     Parameters
     ----------
-    b : ndarray
+    b : array_like
         numerator of a linear filter
-    a : ndarray
+    a : array_like
         denominator of a linear filter
     worN : {None, int, array_like}, optional
         If None (default), then compute at 512 frequencies equally spaced
@@ -194,7 +194,8 @@ def freqz(b, a=1, worN=None, whole=0, plot=None):
     Returns
     -------
     w : ndarray
-        The normalized frequencies at which h was computed, in radians/sample.
+        The normalized frequencies at which `h` was computed, in
+        radians/sample.
     h : ndarray
         The frequency response.
 
@@ -805,8 +806,7 @@ def zpk2sos(z, p, k, pairing='nearest'):
     *Algorithms*
 
     The current algorithms are designed specifically for use with digital
-    filters. Although they can operate on analog filters, the results may
-    be sub-optimal.
+    filters. (The output coefficents are not correct for analog filters.)
 
     The steps in the ``pairing='nearest'`` and ``pairing='keep_odd'``
     algorithms are mostly shared. The ``nearest`` algorithm attempts to
@@ -882,7 +882,7 @@ def zpk2sos(z, p, k, pairing='nearest'):
 
     >>> sos = signal.zpk2sos(z, p, k)
 
-    The coefficents of the numerators of the sections:
+    The coefficients of the numerators of the sections:
 
     >>> sos[:, :3]
     array([[ 0.0014154 ,  0.00248707,  0.0014154 ],
@@ -1033,6 +1033,36 @@ def zpk2sos(z, p, k, pairing='nearest'):
     return sos
 
 
+def _align_nums(nums):
+    """
+    Given an array of numerator coefficient arrays [[a_1, a_2,...,
+    a_n],..., [b_1, b_2,..., b_m]], this function pads shorter numerator
+    arrays with zero's so that all numerators have the same length. Such
+    alignment is necessary for functions like 'tf2ss', which needs the
+    alignment when dealing with SIMO transfer functions.
+    """
+    try:
+        # The statement can throw a ValueError if one
+        # of the numerators is a single digit and another
+        # is array-like e.g. if nums = [5, [1, 2, 3]]
+        nums = asarray(nums)
+
+        if not np.issubdtype(nums.dtype, np.number):
+            raise ValueError("dtype of numerator is non-numeric")
+
+        return nums
+
+    except ValueError:
+        nums = list(nums)
+        maxwidth = len(max(nums, key=lambda num: atleast_1d(num).size))
+
+        for index, num in enumerate(nums):
+            num = atleast_1d(num).tolist()
+            nums[index] = [0] * (maxwidth - len(num)) + num
+
+        return atleast_1d(nums)
+
+
 def normalize(b, a):
     """Normalize polynomial representation of a transfer function.
 
@@ -1040,6 +1070,7 @@ def normalize(b, a):
     BadCoefficients warning is emitted.
 
     """
+    b = _align_nums(b)
     b, a = map(atleast_1d, (b, a))
     if len(a.shape) != 1:
         raise ValueError("Denominator polynomial must be rank-1 array.")
@@ -1524,9 +1555,9 @@ def _zpkbilinear(z, p, k, fs):
 
     Parameters
     ----------
-    z : ndarray
+    z : array_like
         Zeros of the analog IIR filter transfer function.
-    p : ndarray
+    p : array_like
         Poles of the analog IIR filter transfer function.
     k : float
         System gain of the analog IIR filter transfer function.
@@ -1574,9 +1605,9 @@ def _zpklp2lp(z, p, k, wo=1.0):
 
     Parameters
     ----------
-    z : ndarray
+    z : array_like
         Zeros of the analog IIR filter transfer function.
-    p : ndarray
+    p : array_like
         Poles of the analog IIR filter transfer function.
     k : float
         System gain of the analog IIR filter transfer function.
@@ -1627,9 +1658,9 @@ def _zpklp2hp(z, p, k, wo=1.0):
 
     Parameters
     ----------
-    z : ndarray
+    z : array_like
         Zeros of the analog IIR filter transfer function.
-    p : ndarray
+    p : array_like
         Poles of the analog IIR filter transfer function.
     k : float
         System gain of the analog IIR filter transfer function.
@@ -1686,9 +1717,9 @@ def _zpklp2bp(z, p, k, wo=1.0, bw=1.0):
 
     Parameters
     ----------
-    z : ndarray
+    z : array_like
         Zeros of the analog IIR filter transfer function.
-    p : ndarray
+    p : array_like
         Poles of the analog IIR filter transfer function.
     k : float
         System gain of the analog IIR filter transfer function.
@@ -1758,9 +1789,9 @@ def _zpklp2bs(z, p, k, wo=1.0, bw=1.0):
 
     Parameters
     ----------
-    z : ndarray
+    z : array_like
         Zeros of the analog IIR filter transfer function.
-    p : ndarray
+    p : array_like
         Poles of the analog IIR filter transfer function.
     k : float
         System gain of the analog IIR filter transfer function.

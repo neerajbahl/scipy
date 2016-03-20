@@ -8,7 +8,7 @@ __all__ = ['dia_matrix', 'isspmatrix_dia']
 
 import numpy as np
 
-from .base import isspmatrix, _formats
+from .base import isspmatrix, _formats, spmatrix
 from .data import _data_matrix
 from .sputils import isshape, upcast_char, getdtype, get_index_dtype
 from ._sparsetools import dia_matvec
@@ -72,6 +72,7 @@ class dia_matrix(_data_matrix):
            [0, 0, 3, 4]])
 
     """
+    format = 'dia'
 
     def __init__(self, arg1, shape=None, dtype=None, copy=False):
         _data_matrix.__init__(self)
@@ -144,18 +145,25 @@ class dia_matrix(_data_matrix):
             raise ValueError('offset array contains duplicate values')
 
     def __repr__(self):
-        nnz = self.getnnz()
-        format = self.getformat()
+        format = _formats[self.getformat()][1]
         return "<%dx%d sparse matrix of type '%s'\n" \
                "\twith %d stored elements (%d diagonals) in %s format>" % \
-               (self.shape + (self.dtype.type, nnz, self.data.shape[0],
-                 _formats[format][1],))
+               (self.shape + (self.dtype.type, self.nnz, self.data.shape[0],
+                              format))
 
-    def getnnz(self):
-        """number of nonzero values
+    def count_nonzero(self):
+        num_rows, num_cols = self.shape
+        offset_inds = np.arange(self.data.shape[1])
+        row = offset_inds - self.offsets[:,None]
+        mask = (row >= 0)
+        mask &= (row < num_rows)
+        mask &= (offset_inds < num_cols)
+        return np.count_nonzero(self.data[mask])
 
-        explicit zero values are included in this number
-        """
+    def getnnz(self, axis=None):
+        if axis is not None:
+            raise NotImplementedError("getnnz over an axis is not implemented "
+                                      "for DIA format")
         M,N = self.shape
         nnz = 0
         for k in self.offsets:
@@ -165,7 +173,8 @@ class dia_matrix(_data_matrix):
                 nnz += min(M+k,N)
         return int(nnz)
 
-    nnz = property(fget=getnnz)
+    getnnz.__doc__ = spmatrix.getnnz.__doc__
+    count_nonzero.__doc__ = spmatrix.count_nonzero.__doc__
 
     def _mul_vector(self, other):
         x = other
@@ -216,11 +225,13 @@ class dia_matrix(_data_matrix):
             data[-1, min_index:max_index] = values
             self.data = data
 
-    def todia(self,copy=False):
+    def todia(self, copy=False):
         if copy:
             return self.copy()
         else:
             return self
+
+    todia.__doc__ = spmatrix.todia.__doc__
 
     def transpose(self):
         num_rows, num_cols = self.shape
@@ -236,15 +247,19 @@ class dia_matrix(_data_matrix):
         data = data[r,c]
         return dia_matrix((data, offsets), shape=(num_cols,num_rows))
 
-    def tocsr(self):
+    def tocsr(self, copy=False):
         #this could be faster
-        return self.tocoo().tocsr()
+        return self.tocoo(copy=copy).tocsr()
 
-    def tocsc(self):
+    tocsr.__doc__ = spmatrix.tocsr.__doc__
+
+    def tocsc(self, copy=False):
         #this could be faster
-        return self.tocoo().tocsc()
+        return self.tocoo(copy=copy).tocsc()
 
-    def tocoo(self):
+    tocsc.__doc__ = spmatrix.tocsc.__doc__
+
+    def tocoo(self, copy=False):
         num_rows, num_cols = self.shape
         num_offsets, offset_len = self.data.shape
         offset_inds = np.arange(offset_len)
@@ -260,6 +275,8 @@ class dia_matrix(_data_matrix):
 
         from .coo import coo_matrix
         return coo_matrix((data,(row,col)), shape=self.shape)
+
+    tocoo.__doc__ = spmatrix.tocoo.__doc__
 
     # needed by _data_matrix
     def _with_data(self, data, copy=True):
